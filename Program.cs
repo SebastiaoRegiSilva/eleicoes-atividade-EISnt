@@ -18,11 +18,21 @@ namespace Eleicoes.Atividade.EISnt
         /// <typeparam name="int">Número do candidato.</typeparam>
         /// <typeparam name="int">Votos computados ao candidato.</typeparam>
         static Dictionary<int, int> votosValidos = new Dictionary<int, int>{
-            { 1, 0 },
-            { 2, 0 },
-            { 3, 0 },
-            { 4, 0 }
+            { 1, 0},
+            { 2, 0},
+            { 3, 0},
+            { 4, 0}
         };
+
+        /// <summary>
+        /// Organizar o votos dos usuários. 
+        /// </summary>
+        static IEnumerable<(Dictionary<int, int>, int )> ordemVotos = new List<(Dictionary<int, int>, int)>();
+
+        /// <summary>
+        /// Organizar os votos dos usuários/candidatos. 
+        /// </summary>
+        static int ordemDoVoto = 0;    
 
         static void Main(string[] args)
         {
@@ -44,10 +54,7 @@ namespace Eleicoes.Atividade.EISnt
                 if (int.TryParse(entrada, out numeroValido) && numeroValido >= 1 && numeroValido <= 4)
                     entradaValida = true;
                 else if (numeroValido == 0)
-                {
-                    ImprimirResultado();
-                    string vazia = Console.ReadLine(); // Pausa da aplicação.
-                }
+                    AcessoPresidencial();
                 else
                 {
                     try
@@ -68,13 +75,17 @@ namespace Eleicoes.Atividade.EISnt
             return numeroValido;
         }
 
-        static void AdicionarVotos(int numeroCandidato, int valor = 1)
+        static int AdicionarVotos(int numeroCandidato, int valor = 1)
         {
             if (numeroCandidato != 0 && numeroCandidatos.Contains(numeroCandidato))
             {
-                foreach (var numero in numeroCandidatos.Where(x => x.Equals(numeroCandidato)))
-                    votosValidos[numeroCandidato] += valor;
+                foreach (var numero in numeroCandidatos.Where(x => x.Equals(numeroCandidato))){
+                    votosValidos[numeroCandidato] += valor; 
+                    ordemDoVoto ++;
+                }
             }
+
+            return ordemDoVoto;
         }
 
         #region IMPRESSÕES.
@@ -82,10 +93,8 @@ namespace Eleicoes.Atividade.EISnt
         private static void TelaInicial()
         {
             ImprimirInicio();
-            while (ImprimirUrnaVotacao() != 0)
-            {
+            while (ImprimirUrnaVotacao().Item1 != 0)
                 ImprimirUrnaVotacao();
-            }
         }
 
         private static void ImprimirInicio()
@@ -95,14 +104,14 @@ namespace Eleicoes.Atividade.EISnt
             Console.ResetColor();
         }
 
-        private static int ImprimirUrnaVotacao()
+        private static (int, int) ImprimirUrnaVotacao()
         {
             Console.BackgroundColor = ConsoleColor.DarkGreen;
             Console.WriteLine("Escolha seu candidato, por gentileza.");
             int numeroCandidato = ValidarEntrada();
-            AdicionarVotos(numeroCandidato);
+            int posicaoVoto = AdicionarVotos(numeroCandidato);
             Console.ResetColor();
-            return numeroCandidato;
+            return (numeroCandidato, posicaoVoto);
         }
 
         private static void ImprimirResultado()
@@ -117,15 +126,25 @@ namespace Eleicoes.Atividade.EISnt
                 Console.ResetColor();
             }
             Console.BackgroundColor = ConsoleColor.Blue;
-            // O último candidato que recebeu mais quantidade de votos, ele venceu!
-            // Implementei o desempate, mas ia complicar ainda mais!  
-            Console.WriteLine($"O Candidato com número: {vencedor.Key}, venceu com: {vencedor.Value + 1} votos! ");
-
+            // O primeiro candidato que recebeu mais quantidade de votos, ele venceu!
+            if(Desempatar().Item3){
+                Console.WriteLine("Entrou no IF");
+                Console.WriteLine($"\nO Candidato: {Desempatar().Item1}, venceu com: {Desempatar().Item2} votos! \nParabéns por ter sido o primeiro alcançar a quantidade máxima de votos! ");
+            }
+            else{
+                Console.WriteLine("Entrou no ELSE");
+                Console.WriteLine($"\nO Candidato: {vencedor.Key}, venceu com: {vencedor.Value} votos! \nParabéns por ter sido o primeiro alcançar a quantidade máxima de votos! ");
+            }
+            
             Console.ResetColor();
+            Console.WriteLine("Pressione qualquer tecla para encerrar a eleição...");
+            Console.ReadKey();
+            Environment.Exit(0); 
+            // Acabar com a aplicação.
         }
         #endregion
 
-        #region POSSÍVEIS MELHORIAS
+        #region MELHORIAS
         /// <summary>
         /// Função adicional para tirar igualdade entre candidatos.
         /// </summary>
@@ -134,20 +153,28 @@ namespace Eleicoes.Atividade.EISnt
             int desempate = 0, maximoValorVotos = votosValidos.Values.Max(), numCandidato = 0;
             bool empate = false;
 
-            // Agrupando por valores e selecionando apenas os valores repetidos
+            // Agrupando por valores e selecionando apenas os valores repetidos.
             var valores = votosValidos
                 .GroupBy(pair => pair.Value)  // Agrupa pelos valores.
-                .Where(group => group.Count() > 1); // Seleciona grupos com mais de uma ocorrência.
+                .Where(group => group.Count() > 1) // Seleciona grupos com mais de uma ocorrência.
+                .OrderByDescending(o => o.Key); // Ordenar por chave.
+                // BUG quando há ocorrencia de outros valores parecidos. Impedindo entrar no ELSE da impressão de resultados.
 
+            KeyValuePair<int, int> maxPair;
             // Exibindo as chaves e valores duplicados
             foreach (var group in valores)
             {
-                var maxPair = group.FirstOrDefault(pair => pair.Value == maximoValorVotos);
-                desempate = maxPair.Value + 1;
+                maxPair = group.FirstOrDefault(pair => pair.Value == maximoValorVotos);
+                desempate = maxPair.Value;
                 numCandidato = maxPair.Key;
                 empate = true;
+                break;
             }
-            return (desempate, numCandidato, empate);
+
+            if(desempate <= maximoValorVotos)
+                desempate = maximoValorVotos;  
+
+            return (numCandidato, desempate, empate);
         }
         #endregion
 
@@ -155,16 +182,15 @@ namespace Eleicoes.Atividade.EISnt
         static void AcessoPresidencial()
         {
             Console.WriteLine("Bem-vindo presidente! Digite sua senha de acesso:");
-            ControleDeAcesso();
-            // ACESSO com PADRAO 
-            // ACESSO SEM PADRAO
+            if (!ControleDeAcesso())
+                AcessoComPadrao();
         }
 
         private static bool ControleDeAcesso()
         {
 
             var contadorDeAcesso = 3; // Limite de erros de senha.
-            bool acesso = false;
+            bool acessoSenha = false;
             for (int i = 0; i < contadorDeAcesso; i++)
             {
                 // Chama a função para ler a senha oculta
@@ -173,24 +199,38 @@ namespace Eleicoes.Atividade.EISnt
                 // Verifica se a senha está correta
                 if (senha == "senhaPresidente")
                 {
-                    Console.WriteLine("\nSenha correta! Acessando a função...");
-                    FuncaoRestrita();
-                    acesso = true;
+                    Console.WriteLine("\nSenha correta! Acessando ao resultado...");
+                    System.Threading.Thread.Sleep(2000);
+                    ImprimirResultado();
+                    acessoSenha = true;
                     break;
                 }
                 else
                     Console.WriteLine("\nSenha incorreta! Acesso negado.");
-
             }
-            // CODIGO chega aqui;
-            ImplementarSenhaPadrao();
-            return acesso;
+            return acessoSenha;
         }
 
-        private static int ImplementarSenhaPadrao()
+        private static void AcessoComPadrao()
         {
-            int passwordDefault = 987456;
-            return passwordDefault;
+            Console.WriteLine("Bem-vindo presidente! Digite sua senha de acesso:");
+            Console.WriteLine("\nAcesse com a senha padrão - 987456.");
+            // Chama a função para ler a senha oculta
+            string senha = LerSenhaOculta();
+
+            // Verifica se a senha está correta
+            if (senha == "987456")
+            {
+                Console.WriteLine("\nSenha correta! Acessando ao resultado...");
+                System.Threading.Thread.Sleep(2000);
+                ImprimirResultado();
+            }
+            else
+            {
+                Console.WriteLine("\nSenha incorreta! Acesso negado.");
+                Console.WriteLine("\n Tente novamente, com a senha padrão - 987456.");
+                AcessoComPadrao();
+            }
         }
 
         static string LerSenhaOculta()
@@ -200,11 +240,11 @@ namespace Eleicoes.Atividade.EISnt
 
             do
             {
-                // Lê a tecla pressionada sem exibir no console
+                // Lê a tecla pressionada sem exibir no console.
                 var tecla = Console.ReadKey(intercept: true);
                 key = tecla.Key;
 
-                // Se não for Enter, adiciona o caractere à senha
+                // Se não for Enter, adiciona o caractere à senha.
                 if (key != ConsoleKey.Enter)
                 {
                     senha += tecla.KeyChar;
@@ -216,14 +256,6 @@ namespace Eleicoes.Atividade.EISnt
             Console.WriteLine();
             return senha;
         }
-
-        static void FuncaoRestrita()
-        {
-            // Exibir resultado da eleição.
-            Console.WriteLine("Executando a função restrita...");
-            // Insira a lógica da função aqui
-        }
         #endregion
-
     }
 }
